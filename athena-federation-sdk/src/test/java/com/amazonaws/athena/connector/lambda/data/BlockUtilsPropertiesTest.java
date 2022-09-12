@@ -23,6 +23,7 @@ package com.amazonaws.athena.connector.lambda.data;
 import com.amazonaws.athena.connector.lambda.data.helpers.ValuesGenerator;
 import com.amazonaws.athena.connector.lambda.data.helpers.FieldsGenerator;
 
+import org.apache.arrow.vector.complex.MapVector;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.arrow.vector.util.JsonStringArrayList;
@@ -38,7 +39,7 @@ import net.jqwik.api.ForAll;
 import net.jqwik.api.Property;
 import net.jqwik.api.Provide;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 
@@ -121,10 +122,10 @@ class BlockUtilsPropertiesTest {
         switch (vector.getMinorType()) {
             case MAP:
                 JsonStringArrayList obj = (JsonStringArrayList) (vector.getObject(pos));
-                Map<Object, Object> outputMap = new HashMap<Object, Object>();
+                Map<Object, Object> outputMap = new LinkedHashMap<Object, Object>();
                 for (int i = 0; i < obj.size(); i++) {
                     JsonStringHashMap inputMap = (JsonStringHashMap) (obj.get(i));
-                    outputMap.put(inputMap.get("key"), inputMap.get("value"));
+                    outputMap.put(inputMap.get(MapVector.KEY_NAME), inputMap.get(MapVector.VALUE_NAME));
                 }
                 return outputMap;
             default:
