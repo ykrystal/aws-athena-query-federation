@@ -24,6 +24,8 @@ import com.amazonaws.athena.connector.lambda.data.helpers.ValuesGenerator;
 import com.amazonaws.athena.connector.lambda.data.helpers.FieldsGenerator;
 
 import org.apache.arrow.vector.complex.MapVector;
+import org.apache.arrow.vector.types.Types.MinorType;
+import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.arrow.vector.util.JsonStringArrayList;
@@ -53,12 +55,18 @@ class BlockUtilsPropertiesTest {
         return fieldsGenerator.field();
     }
 
-    @Property(tries = 1000)
+    @Property(tries = 100)
     boolean setComplexValuesSetsAllFieldsCorrectlyGivenAnyInput(@ForAll("field") Field field)
         throws java.io.IOException {
 
         ValuesGenerator generator = new ValuesGenerator();
-        FieldVector vector = generator.generateValues(field);
+        FieldVector vector = null;
+        try {
+        vector = generator.generateValues(field);
+        }
+        catch (Exception ex) {
+            ex.printStackTrace(System.out);
+        }
 
         VectorSchemaRoot inputSchemaRoot = new VectorSchemaRoot(
             new Schema(java.util.List.of(field)),
@@ -66,20 +74,19 @@ class BlockUtilsPropertiesTest {
         );
 
         int valueCount = inputSchemaRoot.getVector(0).getValueCount();
-        FieldVector inputVector = inputSchemaRoot.getVector(0);
         VectorSchemaRoot outputSchemaRoot = VectorSchemaRoot.create(inputSchemaRoot.getSchema(), new RootAllocator());
         outputSchemaRoot.setRowCount(1);
-
+        ArrowToArrowResolver resolver = new ArrowToArrowResolver();
         boolean success = false;
         try {
             for (int i = 0; i < valueCount; i++) {
                 if (field.getType().isComplex()) {
                     BlockUtils.setComplexValue(
-                        outputSchemaRoot.getVector(0), i, new ArrowToArrowResolver(), getValue(inputVector, i)
+                        outputSchemaRoot.getVector(0), i, resolver, getValue(vector, i, resolver)
                     );
                 }
                 else {
-                    BlockUtils.setValue(outputSchemaRoot.getVector(0), i, getValue(inputVector, i));
+                    BlockUtils.setValue(outputSchemaRoot.getVector(0), i, getValue(vector, i, resolver));
                 }
             }
 
@@ -94,10 +101,10 @@ class BlockUtilsPropertiesTest {
 
         if (success) {
             logger.debug(
-                "Matched for Schema:\n"
+                "Matched for Schema:\n\t"
                 + inputSchemaRoot.getSchema().toString() + "\n"
-                + "with FieldVectors:\n"
-                + inputSchemaRoot.getFieldVectors().toString()
+                + "with FieldVectors:\n\t"
+                + inputSchemaRoot.getFieldVectors().toString() + "\n"
             );
         }
         else {
@@ -118,31 +125,66 @@ class BlockUtilsPropertiesTest {
         return true;
     }
 
-    private Object getValue(FieldVector vector, int pos) {
-        switch (vector.getMinorType()) {
-            case MAP:
-                JsonStringArrayList obj = (JsonStringArrayList) (vector.getObject(pos));
-                Map<Object, Object> outputMap = new LinkedHashMap<Object, Object>();
-                for (int i = 0; i < obj.size(); i++) {
-                    JsonStringHashMap inputMap = (JsonStringHashMap) (obj.get(i));
-                    outputMap.put(inputMap.get(MapVector.KEY_NAME), inputMap.get(MapVector.VALUE_NAME));
-                }
-                return outputMap;
-            default:
-                return vector.getObject(pos);
+    private Object getValue(FieldVector vector, int pos, FieldResolver resolver) {
+        if (vector.getMinorType().equals(MinorType.MAP)) {
+            return resolver.getFieldValue(vector.getField(), vector.getObject(pos));
+        }
+        else {
+            return vector.getObject(pos);
         }
     }
 }
 
 class ArrowToArrowResolver implements FieldResolver {
+
+    // Needed for maps since IdentityHashMap does not maintain order and LinkedHashMap does not use reference equality
+    class KeyWithEquality {
+        public Object key;
+
+        KeyWithEquality(Object key) {
+            this.key = key;
+        }
+
+        public boolean equals(Object o) {
+            return this.key == o;
+        }
+    }
+
     @Override
     public Object getFieldValue(Field field, Object originalValue) {
+        if (originalValue.getClass().equals(KeyWithEquality.class)) {
+            originalValue = ((KeyWithEquality) originalValue).key;
+        }
+
+        if (field.getType().getTypeID() == ArrowType.Map.TYPE_TYPE) {
+            JsonStringArrayList input;
+            if (originalValue.getClass().equals(JsonStringHashMap.class)) {
+                input = (JsonStringArrayList) ((Map) originalValue).get(field.getName());
+            }
+            else {
+                input = (JsonStringArrayList) originalValue;
+            }
+
+            if (input == null) {
+                return null;
+            }
+
+            Map<Object, Object> outputMap = new LinkedHashMap<Object, Object>();
+            for (int i = 0; i <  input.size(); i++) {
+                JsonStringHashMap inputMap = (JsonStringHashMap) input.get(i);
+                outputMap.put(new KeyWithEquality(inputMap.get(MapVector.KEY_NAME)), inputMap.get(MapVector.VALUE_NAME));
+            }
+            return outputMap;
+        }
+
         if (originalValue.getClass().equals(JsonStringHashMap.class) || originalValue.getClass().equals(Map.class)) {
             Object fieldValue = ((Map) originalValue).get(field.getName());
             return fieldValue;
         }
         return originalValue;
     }
+
+
 }
 
 

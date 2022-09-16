@@ -23,6 +23,7 @@ import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.MapVector;
 import org.apache.arrow.vector.complex.StructVector;
+import org.apache.arrow.vector.holders.NullableBigIntHolder;
 import org.apache.arrow.vector.holders.NullableBitHolder;
 import org.apache.arrow.vector.holders.NullableDateDayHolder;
 import org.apache.arrow.vector.holders.NullableDateMilliHolder;
@@ -30,11 +31,18 @@ import org.apache.arrow.vector.holders.NullableDecimalHolder;
 import org.apache.arrow.vector.holders.NullableFloat4Holder;
 import org.apache.arrow.vector.holders.NullableFloat8Holder;
 import org.apache.arrow.vector.holders.NullableIntHolder;
+import org.apache.arrow.vector.holders.NullableSmallIntHolder;
+import org.apache.arrow.vector.holders.NullableTinyIntHolder;
 import org.apache.arrow.vector.holders.NullableTimeStampMilliTZHolder;
+import org.apache.arrow.vector.holders.NullableUInt1Holder;
+import org.apache.arrow.vector.holders.NullableUInt2Holder;
 import org.apache.arrow.vector.holders.NullableUInt4Holder;
+import org.apache.arrow.vector.holders.NullableUInt8Holder;
 import org.apache.arrow.vector.holders.NullableVarBinaryHolder;
 import org.apache.arrow.vector.holders.NullableVarCharHolder;
+import org.apache.arrow.vector.types.Types.MinorType;
 import org.apache.arrow.vector.types.pojo.Field;
+import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.DateDayVector;
 import org.apache.arrow.vector.DateMilliVector;
@@ -43,8 +51,13 @@ import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.Float4Vector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
+import org.apache.arrow.vector.SmallIntVector;
+import org.apache.arrow.vector.TinyIntVector;
 import org.apache.arrow.vector.TimeStampMilliTZVector;
+import org.apache.arrow.vector.UInt1Vector;
+import org.apache.arrow.vector.UInt2Vector;
 import org.apache.arrow.vector.UInt4Vector;
+import org.apache.arrow.vector.UInt8Vector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
 
@@ -52,48 +65,65 @@ import net.jqwik.api.*;
 import net.jqwik.time.api.*;
 
 import java.math.BigDecimal;
-import java.time.MonthDay;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.*;
 
 public class ValuesGenerator {
 
+    private static final Long MIN_TIME = Instant.ofEpochMilli(Long.MIN_VALUE).toEpochMilli();
+    private static final Long MAX_TIME = Instant.ofEpochMilli(Long.MAX_VALUE).toEpochMilli();
+
     public FieldVector generateValues(Field field) {
         FieldVector vector = field.createVector(new RootAllocator());
-        generateValues(field, vector, 0);
+        generateValues(field, vector, 0, false);
         return vector;
     }
 
-    public int generateValues(Field field, FieldVector vector, int length) {
+    public int generateValues(Field field, FieldVector vector, int length, boolean unique) {
         switch (vector.getMinorType()) {
+            case BIGINT:
+                return setBigInt(field, vector, length, unique);
             case BIT:
-                return setBit(field, vector, length);
+                return setBit(field, vector, length, unique);
             case DATEDAY:
-                return setDateDay(field, vector, length);
+                return setDateDay(field, vector, length, unique);
             case DATEMILLI:
-                return setDateMilli(field, vector, length);
+                return setDateMilli(field, vector, length, unique);
             case DECIMAL:
-                return setDecimal(field, vector, length);
+                return setDecimal(field, vector, length, unique);
             case FLOAT4:
-                return setFloat4(field, vector, length);
+                return setFloat4(field, vector, length, unique);
             case FLOAT8:
-                return setFloat8(field, vector, length);
+                return setFloat8(field, vector, length, unique);
             case INT:
-                return setInt(field, vector, length);
+                return setInt(field, vector, length, unique);
             case LIST:
-                return setList(field, vector, length);
+                return setList(field, vector, length, unique);
             case MAP:
-                return setMap(field, vector, length);
+                return setMap(field, vector, length, unique);
+            case SMALLINT:
+                return setSmallInt(field, vector, length, unique);
             case STRUCT:
-                return setStruct(field, vector, length);
+                return setStruct(field, vector, length, unique);
             case TIMESTAMPMILLITZ:
-                return setTimestampMilliTz(field, vector, length);
+                return setTimestampMilliTz(field, vector, length, unique);
+            case TINYINT:
+                return setTinyInt(field, vector, length, unique);
+            case UINT1:
+                return setUint1(field, vector, length, unique);
+            case UINT2:
+                return setUint2(field, vector, length, unique);
             case UINT4:
-            return setUint4(field, vector, length);
+                return setUint4(field, vector, length, unique);
+            case UINT8:
+                return setUint8(field, vector, length, unique);
             case VARBINARY:
-                return setVarBinary(field, vector, length);
+                return setVarBinary(field, vector, length, unique);
             case VARCHAR:
-                return setVarChar(field, vector, length);
+                return setVarChar(field, vector, length, unique);
             default:
                 throw new RuntimeException("Not yet implemented for typeId " + vector.getMinorType());
         }
@@ -124,14 +154,14 @@ public class ValuesGenerator {
      * Complex Types
      */
 
-    private int setStruct(Field field, FieldVector vector, int length) {
+    private int setStruct(Field field, FieldVector vector, int length, boolean unique) {
         int position = vector.getValueCount();
         int maxChildSize = 0;
 
         for (int i = 0; i < vector.getChildrenFromFields().size(); i++) {
             Field childField = field.getChildren().get(i);
             FieldVector childVector = vector.getChildrenFromFields().get(i);
-            maxChildSize = Math.max(generateValues(childField, childVector, length), maxChildSize);
+            maxChildSize = Math.max(generateValues(childField, childVector, length, false), maxChildSize);
         }
 
         for (int i = position; i < maxChildSize; i++) {
@@ -141,7 +171,7 @@ public class ValuesGenerator {
         return vector.getValueCount();
     }
 
-    private int setList(Field field, FieldVector vector, int length) {
+    private int setList(Field field, FieldVector vector, int length, boolean unique) {
         assertThat(vector.getChildrenFromFields().size()).isEqualTo(1);
 
         int position = vector.getValueCount();
@@ -153,7 +183,7 @@ public class ValuesGenerator {
         for (int i = 0; i < length; i++) {
             if (!isNull(field)) {
                 ((ListVector) vector).startNewValue(position + i);
-                int newChildSize = generateValues(childField, childVector, 0);
+                int newChildSize = generateValues(childField, childVector, 0, false);
                 ((ListVector) vector).endValue(position + i, newChildSize - prevChildSize);
                 prevChildSize = newChildSize;
             }
@@ -162,7 +192,7 @@ public class ValuesGenerator {
         return vector.getValueCount();
     }
 
-    private int setMap(Field field, FieldVector vector, int length) {
+    private int setMap(Field field, FieldVector vector, int length, boolean unique) {
         assertThat(vector.getChildrenFromFields().size()).isEqualTo(1);
 
         int position = vector.getValueCount();
@@ -181,8 +211,12 @@ public class ValuesGenerator {
         for (int i = 0; i < length; i++) {
             ((MapVector) vector).startNewValue(position+i);
             int keysValuesLength = getLength(0);
-            generateValues(keysField, keys, keysValuesLength);
-            generateValues(valuesField, values, keysValuesLength);
+            if (keys.getMinorType().equals(MinorType.VARBINARY) || keys.getMinorType().equals(MinorType.BIT)) {
+                keysValuesLength = 2; // special case if key is of binary/bit type
+            }
+
+            generateValues(keysField, keys, keysValuesLength, true);
+            generateValues(valuesField, values, keysValuesLength, false);
             ((MapVector) vector).endValue(position+i, keysValuesLength);
         }
         vector.setValueCount(position+length);
@@ -198,58 +232,39 @@ public class ValuesGenerator {
      * Primitive Types
      */
 
-    private int setInt(Field field, FieldVector vector, int length) {
+    private int setBigInt(Field field, FieldVector vector, int length, boolean unique) {
         int position = vector.getValueCount();
 
         length = getLength(length);
+        List<Long> items = unique ?
+            Arbitraries.longs().list().ofSize(length).uniqueElements().sample() :
+            Arbitraries.longs().list().ofSize(length).sample();
 
-        for (int i = position; i < position + length; i++) {
+        for (int i = 0; i < length; i++) {
             if (isNull(field)) {
-                ((IntVector) vector).setSafe(i, new NullableIntHolder());
-            }
-            else {
-                int rand = Arbitraries.integers().sample();
-                ((IntVector) vector).setSafe(i, rand);
+                ((BigIntVector) vector).setSafe(i+position, new NullableBigIntHolder());
+            } else {
+                ((BigIntVector) vector).setSafe(i+position, items.get(i));
             }
         }
         vector.setValueCount(position + length);
         return vector.getValueCount();
     }
 
-    private int setVarChar(Field field, FieldVector vector, int length) {
+    private int setBit(Field field, FieldVector vector, int length, boolean unique) {
         int position = vector.getValueCount();
 
         length = getLength(length);
+        List<Integer> items = unique ?
+            Arbitraries.integers().between(0, 1).list().ofSize(length).uniqueElements().sample() :
+            Arbitraries.integers().between(0, 1).list().ofSize(length).sample();
 
-        for (int i = position; i < position + length; i++) {
+        for (int i = 0; i < length; i++) {
             if (isNull(field)) {
-                ((VarCharVector) vector).setSafe(i, new NullableVarCharHolder());
+                ((BitVector) vector).setSafe(i+position, new NullableBitHolder());
             }
             else {
-                String rand = Arbitraries.strings().withCharRange('a', 'z')
-                    .ofMinLength(5)
-                    .ofMaxLength(10)
-                    .sample();
-                ((VarCharVector) vector).setSafe(i, rand.getBytes());
-            }
-        }
-
-        vector.setValueCount(position + length);
-        return vector.getValueCount();
-    }
-
-    private int setDateDay(Field field, FieldVector vector, int length) {
-        int position = vector.getValueCount();
-
-        length = getLength(length);
-
-        for (int i = position; i < position + length; i++) {
-            if (isNull(field)) {
-                ((DateDayVector) vector).setSafe(i, new NullableDateDayHolder());
-            }
-            else {
-                MonthDay rand = Dates.monthDays().sample();
-                ((DateDayVector) vector).setSafe(i, rand.getDayOfMonth());
+                ((BitVector) vector).setSafe(i+position, items.get(i));
             }
         }
 
@@ -257,18 +272,43 @@ public class ValuesGenerator {
         return vector.getValueCount();
     }
 
-    private int setDateMilli(Field field, FieldVector vector, int length) {
+    private int setDateDay(Field field, FieldVector vector, int length, boolean unique) {
+        int position = vector.getValueCount();
+
+        length = getLength(length);
+        List<LocalDate> items = unique ?
+            Dates.dates().list().ofSize(length).uniqueElements().sample() :
+            Dates.dates().list().ofSize(length).sample();
+
+
+        for (int i = 0; i < length; i++) {
+            if (isNull(field)) {
+                ((DateDayVector) vector).setSafe(i+position, new NullableDateDayHolder());
+            }
+            else {
+                ((DateDayVector) vector).setSafe(i+position, (int) items.get(i).toEpochDay());
+            }
+        }
+
+        vector.setValueCount(position + length);
+        return vector.getValueCount();
+    }
+
+    private int setDateMilli(Field field, FieldVector vector, int length, boolean unique) {
         int position = vector.getValueCount();
 
         length = getLength(length);
 
-        for (int i = position; i < position + length; i++) {
+        List<Long> items = unique ?
+            Arbitraries.longs().greaterOrEqual(MIN_TIME).lessOrEqual(MAX_TIME).list().ofSize(length).uniqueElements().sample() :
+            Arbitraries.longs().greaterOrEqual(MIN_TIME).lessOrEqual(MAX_TIME).list().ofSize(length).sample();
+
+        for (int i = 0; i < length; i++) {
             if (isNull(field)){
-                ((DateMilliVector) vector).setSafe(i, new NullableDateMilliHolder());
+                ((DateMilliVector) vector).setSafe(i+position, new NullableDateMilliHolder());
             }
             else {
-                Long rand = Arbitraries.longs().sample();
-                ((DateMilliVector) vector).setSafe(i, rand);
+                ((DateMilliVector) vector).setSafe(i+position, items.get(i));
             }
         }
 
@@ -276,17 +316,24 @@ public class ValuesGenerator {
         return vector.getValueCount();
     }
 
-    private int setTimestampMilliTz(Field field, FieldVector vector, int length) {
+    private int setDecimal(Field field, FieldVector vector, int length, boolean unique) {
         int position = vector.getValueCount();
-
         length = getLength(length);
+        int scale = ((DecimalVector) vector).getScale();
+        int precision = ((DecimalVector) vector).getPrecision();
+        double range = Math.pow(10, (precision-scale));
 
-        for (int i = position; i < position + length; i++) {
+        List<BigDecimal> items = unique ?
+            Arbitraries.bigDecimals().greaterThan(new BigDecimal(range*-1)).lessThan(new BigDecimal(range)).ofScale(scale)
+                .list().ofSize(length).uniqueElements().sample() :
+            Arbitraries.bigDecimals().greaterThan(new BigDecimal(range*-1)).lessThan(new BigDecimal(range)).ofScale(scale)
+                .list().ofSize(length).sample();
+
+        for (int i = 0; i < length; i++) {
             if (isNull(field)) {
-                ((TimeStampMilliTZVector) vector).setSafe(i, new NullableTimeStampMilliTZHolder());
+                ((DecimalVector) vector).setSafe(i+position, new NullableDecimalHolder());
             } else {
-                Long rand = Arbitraries.longs().greaterOrEqual(0).sample();
-                ((TimeStampMilliTZVector) vector).setSafe(i, rand);
+                ((DecimalVector) vector).setSafe(i+position, items.get(i));
             }
         }
 
@@ -294,17 +341,19 @@ public class ValuesGenerator {
         return vector.getValueCount();
     }
 
-    private int setFloat4(Field field, FieldVector vector, int length) {
+    private int setFloat4(Field field, FieldVector vector, int length, boolean unique) {
         int position = vector.getValueCount();
 
         length = getLength(length);
+        List<Float> items = unique ?
+            Arbitraries.floats().list().ofSize(length).uniqueElements().sample() :
+            Arbitraries.floats().list().ofSize(length).sample();
 
-        for (int i = position; i < position + length; i++) {
+        for (int i = 0; i < length; i++) {
             if (isNull(field)) {
-                ((Float4Vector) vector).setSafe(i, new NullableFloat4Holder());
+                ((Float4Vector) vector).setSafe(i+position, new NullableFloat4Holder());
             } else {
-                Float rand = Arbitraries.floats().greaterOrEqual(0).sample();
-                ((Float4Vector) vector).setSafe(i, rand);
+                ((Float4Vector) vector).setSafe(i+position, items.get(i));
             }
         }
 
@@ -312,17 +361,19 @@ public class ValuesGenerator {
         return vector.getValueCount();
     }
 
-    private int setFloat8(Field field, FieldVector vector, int length) {
+    private int setFloat8(Field field, FieldVector vector, int length, boolean unique) {
         int position = vector.getValueCount();
 
         length = getLength(length);
+        List<Float> items = unique ?
+            Arbitraries.floats().list().ofSize(length).uniqueElements().sample() :
+            Arbitraries.floats().list().ofSize(length).sample();
 
-        for (int i = position; i < position + length; i++) {
+        for (int i = 0; i < length; i++) {
             if (isNull(field)) {
-                ((Float8Vector) vector).setSafe(i, new NullableFloat8Holder());
+                ((Float8Vector) vector).setSafe(i+position, new NullableFloat8Holder());
             } else {
-                Double rand = Arbitraries.doubles().greaterOrEqual(0).sample();
-                ((Float8Vector) vector).setSafe(i, rand);
+                ((Float8Vector) vector).setSafe(i+position, items.get(i));
             }
         }
 
@@ -330,37 +381,59 @@ public class ValuesGenerator {
         return vector.getValueCount();
     }
 
-    private int setVarBinary(Field field, FieldVector vector, int length) {
+    private int setInt(Field field, FieldVector vector, int length, boolean unique) {
         int position = vector.getValueCount();
 
         length = getLength(length);
+        List<Integer> items = unique ?
+            Arbitraries.integers().list().ofSize(length).uniqueElements().sample() :
+            Arbitraries.integers().list().ofSize(length).sample();
 
-        for (int i = position; i < position + length; i++) {
+        for (int i = 0; i < length; i++) {
             if (isNull(field)) {
-                ((VarBinaryVector) vector).setSafe(i, new NullableVarBinaryHolder());
+                ((IntVector) vector).setSafe(i+position, new NullableIntHolder());
             }
             else {
-                String rand = Arbitraries.strings().sample();
-                ((VarBinaryVector) vector).setSafe(i, rand.getBytes());
+                ((IntVector) vector).setSafe(i+position, items.get(i));
             }
         }
-
         vector.setValueCount(position + length);
         return vector.getValueCount();
     }
 
-    private int setBit(Field field, FieldVector vector, int length) {
+    private int setSmallInt(Field field, FieldVector vector, int length, boolean unique) {
         int position = vector.getValueCount();
 
         length = getLength(length);
+        List<Short> items = unique ?
+            Arbitraries.shorts().list().ofSize(length).uniqueElements().sample() :
+            Arbitraries.shorts().list().ofSize(length).sample();
 
-        for (int i = position; i < position + length; i++) {
+        for (int i = 0; i < length; i++) {
             if (isNull(field)) {
-                ((BitVector) vector).setSafe(i, new NullableBitHolder());
+                ((SmallIntVector) vector).setSafe(i+position, new NullableSmallIntHolder());
             }
             else {
-                int rand = Arbitraries.integers().between(0, 1).sample();
-                ((BitVector) vector).setSafe(i, rand);
+                ((SmallIntVector) vector).setSafe(i+position, items.get(i));
+            }
+        }
+        vector.setValueCount(position + length);
+        return vector.getValueCount();
+    }
+
+    private int setTimestampMilliTz(Field field, FieldVector vector, int length, boolean unique) {
+        int position = vector.getValueCount();
+
+        length = getLength(length);
+        List<Long> items = unique ?
+            Arbitraries.longs().greaterOrEqual(MIN_TIME).lessOrEqual(MAX_TIME).list().ofSize(length).uniqueElements().sample() :
+            Arbitraries.longs().greaterOrEqual(MIN_TIME).lessOrEqual(MAX_TIME).list().ofSize(length).sample();
+
+        for (int i = 0; i < length; i++) {
+            if (isNull(field)) {
+                ((TimeStampMilliTZVector) vector).setSafe(i+position, new NullableTimeStampMilliTZHolder());
+            } else {
+                ((TimeStampMilliTZVector) vector).setSafe(i+position, items.get(i));
             }
         }
 
@@ -368,19 +441,40 @@ public class ValuesGenerator {
         return vector.getValueCount();
     }
 
-    private int setDecimal(Field field, FieldVector vector, int length) {
+    private int setTinyInt(Field field, FieldVector vector, int length, boolean unique) {
         int position = vector.getValueCount();
 
         length = getLength(length);
+        List<Byte> items = unique ?
+            Arbitraries.bytes().list().ofSize(length).uniqueElements().sample() :
+            Arbitraries.bytes().list().ofSize(length).sample();
 
-        for (int i = position; i < position + length; i++) {
+        for (int i = 0; i < length; i++) {
             if (isNull(field)) {
-                ((DecimalVector) vector).setSafe(i, new NullableDecimalHolder());
-            } else {
-                BigDecimal rand = Arbitraries.bigDecimals()
-                .between(new BigDecimal("-99999"), new BigDecimal("99999"))
-                .ofScale(5).sample();
-                ((DecimalVector) vector).setSafe(i, rand);
+                ((TinyIntVector) vector).setSafe(i+position, new NullableTinyIntHolder());
+            }
+            else {
+                ((TinyIntVector) vector).setSafe(i+position, items.get(i));
+            }
+        }
+        vector.setValueCount(position + length);
+        return vector.getValueCount();
+    }
+
+    private int setVarChar(Field field, FieldVector vector, int length, boolean unique) {
+        int position = vector.getValueCount();
+
+        length = getLength(length);
+        List<String> items = unique ?
+            Arbitraries.strings().list().ofSize(length).uniqueElements().sample() :
+            Arbitraries.strings().list().ofSize(length).sample();
+
+        for (int i = 0; i < length; i++) {
+            if (isNull(field)) {
+                ((VarCharVector) vector).setSafe(i+position, new NullableVarCharHolder());
+            }
+            else {
+                ((VarCharVector) vector).setSafe(i+position, items.get(i).getBytes());
             }
         }
 
@@ -388,19 +482,99 @@ public class ValuesGenerator {
         return vector.getValueCount();
     }
 
-    private int setUint4(Field field, FieldVector vector, int length) {
+    private int setUint1(Field field, FieldVector vector, int length, boolean unique) {
         int position = vector.getValueCount();
 
         length = getLength(length);
+        List<Byte> items = unique ?
+            Arbitraries.bytes().greaterOrEqual((byte) 0).list().ofSize(length).uniqueElements().sample() :
+            Arbitraries.bytes().greaterOrEqual((byte) 0).list().ofSize(length).sample();
 
-        for (int i = position; i < position + length; i++) {
+        for (int i = 0; i < length; i++) {
             if (isNull(field)) {
-                ((UInt4Vector) vector).setSafe(i, new NullableUInt4Holder());
+                ((UInt1Vector) vector).setSafe(i+position, new NullableUInt1Holder());
             } else {
-                int rand = Arbitraries.integers().greaterOrEqual(0).sample();
-                ((UInt4Vector) vector).setSafe(i, rand);
+                ((UInt1Vector) vector).setSafe(i+position, items.get(i));
             }
         }
+        vector.setValueCount(position + length);
+        return vector.getValueCount();
+    }
+
+    private int setUint2(Field field, FieldVector vector, int length, boolean unique) {
+        int position = vector.getValueCount();
+
+        length = getLength(length);
+        List<Short> items = unique ?
+            Arbitraries.shorts().greaterOrEqual((short) 0).list().ofSize(length).uniqueElements().sample() :
+            Arbitraries.shorts().greaterOrEqual((short) 0).list().ofSize(length).sample();
+
+        for (int i = 0; i < length; i++) {
+            if (isNull(field)) {
+                ((UInt2Vector) vector).setSafe(i+position, new NullableUInt2Holder());
+            } else {
+                ((UInt2Vector) vector).setSafe(i+position, items.get(i));
+            }
+        }
+        vector.setValueCount(position + length);
+        return vector.getValueCount();
+    }
+
+    private int setUint4(Field field, FieldVector vector, int length, boolean unique) {
+        int position = vector.getValueCount();
+
+        length = getLength(length);
+        List<Integer> items = unique ?
+            Arbitraries.integers().greaterOrEqual(0).list().ofSize(length).uniqueElements().sample() :
+            Arbitraries.integers().greaterOrEqual(0).list().ofSize(length).sample();
+
+        for (int i = 0; i < length; i++) {
+            if (isNull(field)) {
+                ((UInt4Vector) vector).setSafe(i+position, new NullableUInt4Holder());
+            } else {
+                ((UInt4Vector) vector).setSafe(i+position, items.get(i));
+            }
+        }
+        vector.setValueCount(position + length);
+        return vector.getValueCount();
+    }
+
+    private int setUint8(Field field, FieldVector vector, int length, boolean unique) {
+        int position = vector.getValueCount();
+
+        length = getLength(length);
+        List<Long> items = unique ?
+            Arbitraries.longs().greaterOrEqual(0).list().ofSize(length).uniqueElements().sample() :
+            Arbitraries.longs().greaterOrEqual(0).list().ofSize(length).sample();
+
+        for (int i = 0; i < length; i++) {
+            if (isNull(field)) {
+                ((UInt8Vector) vector).setSafe(i+position, new NullableUInt8Holder());
+            } else {
+                ((UInt8Vector) vector).setSafe(i+position, items.get(i));
+            }
+        }
+        vector.setValueCount(position + length);
+        return vector.getValueCount();
+    }
+
+    private int setVarBinary(Field field, FieldVector vector, int length, boolean unique) {
+        int position = vector.getValueCount();
+
+        length = getLength(length);
+        List<String> items = unique ?
+            Arbitraries.strings().list().ofSize(length).uniqueElements().sample() :
+            Arbitraries.strings().list().ofSize(length).sample();
+
+        for (int i = 0; i < length; i++) {
+            if (isNull(field)) {
+                ((VarBinaryVector) vector).setSafe(i+position, new NullableVarBinaryHolder());
+            }
+            else {
+                ((VarBinaryVector) vector).setSafe(i+position, items.get(i).getBytes());
+            }
+        }
+
         vector.setValueCount(position + length);
         return vector.getValueCount();
     }

@@ -36,7 +36,7 @@ import java.util.List;
 public class FieldsGenerator {
 
     private int counter = 0; // use to guarentee field names are unique for structs
-    private boolean DEFAULT_NULLABLE = false; // TODO: resolve and set to true
+    private boolean DEFAULT_NULLABLE = true;
     private int MAX_RECURSION_DEPTH = 5;
 
     @Provide
@@ -62,22 +62,60 @@ public class FieldsGenerator {
     }
 
     @Provide
+    private Arbitrary<FieldType> intField(boolean nullable) {
+        return Arbitraries.of(true, false).flatMap(signed ->
+            Arbitraries.of(8, 16, 32, 64).map(bits ->
+                new FieldType(nullable, new ArrowType.Int(bits, signed), null)
+            )
+        );
+    }
+
+    @Provide
+    private Arbitrary<FieldType> dateField(boolean nullable) {
+        return Arbitraries.of(DateUnit.DAY, DateUnit.MILLISECOND).map(unit ->
+            new FieldType(nullable, new ArrowType.Date(unit), null)
+        );
+    }
+
+    @Provide
+    private Arbitrary<FieldType> floatingPointField(boolean nullable) {
+        // FloatingPointPrecision.HALF not supported yet in BlockUtils yet
+        return Arbitraries.of(FloatingPointPrecision.SINGLE, FloatingPointPrecision.DOUBLE).map(precision ->
+            new FieldType(nullable, new ArrowType.FloatingPoint(precision), null)
+        );
+    }
+
+    @Provide
+    private Arbitrary<FieldType> timestampField(boolean nullable) {
+        return Arbitraries.of("UTC").flatMap(timezone ->
+            Arbitraries.of(TimeUnit.MILLISECOND).map(unit ->
+                new FieldType(nullable, new ArrowType.Timestamp(unit, timezone), null)
+            )
+        );
+    }
+
+    @Provide
+    private Arbitrary<FieldType> decimalField(boolean nullable) {
+        return Arbitraries.integers().between(1,20).flatMap(precision ->
+            Arbitraries.integers().greaterOrEqual(0).lessOrEqual(precision-1).flatMap(scale ->
+                Arbitraries.of(32, 64, 128).map(bitWidth ->
+                    new FieldType(nullable, new ArrowType.Decimal(precision, scale, bitWidth), null)
+                )
+            )
+        );
+    }
+
+    @Provide
     private Arbitrary<FieldType> primitiveFieldType(boolean nullable) {
-        return Arbitraries.of(
-            new FieldType(nullable, new ArrowType.Binary(), null)
-            , new FieldType(nullable, new ArrowType.Bool(), null)
-            , new FieldType(nullable, new ArrowType.Date(DateUnit.DAY), null)
-            // TODO: Resolve and uncomment
-            //, new FieldType(nullable, new ArrowType.Date(DateUnit.MILLISECOND), null)
-            , new FieldType(nullable, new ArrowType.Decimal(10, 5, 128), null)
-            , new FieldType(nullable, new ArrowType.FloatingPoint(FloatingPointPrecision.SINGLE), null)
-            , new FieldType(nullable, new ArrowType.FloatingPoint(FloatingPointPrecision.DOUBLE), null)
-            , new FieldType(nullable, new ArrowType.Int(32, true), null)
-            , new FieldType(nullable, new ArrowType.Int(32, false), null)
-            // TODO: Resolve and uncomment
-            //, new FieldType(nullable, new ArrowType.Timestamp(TimeUnit.MILLISECOND, "UTC"), null)
-            // TODO: Resolve and uncomment
-            //, new FieldType(nullable, new ArrowType.Utf8(), null)
+        return Arbitraries.oneOf(
+            Arbitraries.just(new FieldType(nullable, new ArrowType.Binary(), null))
+            , Arbitraries.just(new FieldType(nullable, new ArrowType.Bool(), null))
+            , dateField(nullable)
+            , decimalField(nullable)
+            , intField(nullable)
+            , floatingPointField(nullable)
+            , timestampField(nullable)
+            , Arbitraries.just(new FieldType(nullable, new ArrowType.Utf8(), null))
         );
     }
 
@@ -86,8 +124,7 @@ public class FieldsGenerator {
         return Arbitraries.of(
             new FieldType(nullable, new ArrowType.List(), null)
             , new FieldType(nullable, new ArrowType.Struct(), null)
-            // TODO: Resolve and uncomment
-            //, new FieldType(nullable, new ArrowType.Map(true), null)
+            , new FieldType(nullable, new ArrowType.Map(true), null)
         );
     }
 
