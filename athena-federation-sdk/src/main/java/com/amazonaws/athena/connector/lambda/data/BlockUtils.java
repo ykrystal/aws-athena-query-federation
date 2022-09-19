@@ -341,7 +341,12 @@ public class BlockUtils
                     }
                     break;
                 case UINT2:
-                    ((UInt2Vector) vector).setSafe(pos, (char) value);
+                    if (value instanceof Character) {
+                        ((UInt2Vector) vector).setSafe(pos, (char) value);
+                    }
+                    else {
+                        ((UInt2Vector) vector).setSafe(pos, (int) value);
+                    }
                     break;
                 case UINT4:
                     ((UInt4Vector) vector).setSafe(pos, (int) value);
