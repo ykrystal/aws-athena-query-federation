@@ -111,7 +111,8 @@ public class FieldsGenerator {
             , decimalField(nullable)
             , intField(nullable)
             , floatingPointField(nullable)
-            // TODO: timestampField is a known failure. This needs to be resolved in BlockUtils first
+            // TODO: Known failure, Arrow has a bug with writing some types to Lists like ArrowType.Timestamp
+            // Uncomment once Arrow has resolve
             //, timestampField(nullable)
             , Arbitraries.just(new FieldType(nullable, new ArrowType.Utf8(), null))
         );

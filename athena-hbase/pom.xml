@@ -10,6 +10,7 @@
     <version>2022.34.1</version>
     <properties>
         <slf4jVersion>1.7.30</slf4jVersion>
+        <surefire.failsafe.version>3.0.0-M7</surefire.failsafe.version>
     </properties>
     <dependencies>
         <dependency>
@@ -158,6 +159,17 @@
                         </configuration>
                     </execution>
                 </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>${surefire.failsafe.version}</version>
+                <configuration>
+                    <argLine>-Xmx2048m</argLine>
+                    <excludes>
+                        <exclude>*IntegTest</exclude>
+                    </excludes>
+                </configuration>
             </plugin>
         </plugins>
     </build>
