@@ -775,7 +775,10 @@ public class BlockUtils
             switch (Types.getMinorTypeForArrowType(type)) {
                 case TIMESTAMPMILLITZ:
                     long dateTimeWithZone;
-                    TimeStampMilliTZWriter timeStampMilliTZWriter = fromMapOrStruct ? writer.timeStampMilliTZ(field.getName()) : writer.timeStampMilliTZ();
+                    String timezone =  ((ArrowType.Timestamp) type).getTimezone();
+
+                    // Known issue with Lists and Maps of TimeStampMilliTZ. This will throw.
+                    TimeStampMilliTZWriter timeStampMilliTZWriter = fromMapOrStruct ? writer.timeStampMilliTZ(field.getName(), timezone) : writer.timeStampMilliTZ();
                     if (value == null) {
                         timeStampMilliTZWriter.writeNull();
                         break;
@@ -806,8 +809,7 @@ public class BlockUtils
                         dateMilliWriter.writeDateMilli(((Date) value).getTime());
                     }
                     else if (value instanceof LocalDateTime) {
-                        Date out = Date.from(((LocalDateTime) value).atZone(UTC_ZONE_ID).toInstant());
-                        dateMilliWriter.writeDateMilli(out.getTime());
+                        dateMilliWriter.writeDateMilli(((LocalDateTime) value).atZone(UTC_ZONE_ID).toInstant().toEpochMilli());
                     }
                     else {
                         dateMilliWriter.writeDateMilli((long) value);
@@ -1010,7 +1012,6 @@ public class BlockUtils
             }
         }
         catch (RuntimeException ex) {
-            ex.printStackTrace(System.out);
             throw new RuntimeException("Unable to write value for field "
                 + field.getName() + " using value " + value
                 + " with minor type " + Types.getMinorTypeForArrowType(type), ex);

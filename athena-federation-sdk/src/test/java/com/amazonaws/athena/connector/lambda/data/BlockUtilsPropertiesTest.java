@@ -60,13 +60,7 @@ class BlockUtilsPropertiesTest {
         throws java.io.IOException {
 
         ValuesGenerator generator = new ValuesGenerator();
-        FieldVector vector = null;
-        try {
-        vector = generator.generateValues(field);
-        }
-        catch (Exception ex) {
-            ex.printStackTrace(System.out);
-        }
+        FieldVector vector = generator.generateValues(field);
 
         VectorSchemaRoot inputSchemaRoot = new VectorSchemaRoot(
             new Schema(java.util.List.of(field)),
@@ -77,29 +71,21 @@ class BlockUtilsPropertiesTest {
         VectorSchemaRoot outputSchemaRoot = VectorSchemaRoot.create(inputSchemaRoot.getSchema(), new RootAllocator());
         outputSchemaRoot.setRowCount(1);
         ArrowToArrowResolver resolver = new ArrowToArrowResolver();
-        boolean success = false;
-        try {
-            for (int i = 0; i < valueCount; i++) {
-                if (field.getType().isComplex()) {
-                    BlockUtils.setComplexValue(
-                        outputSchemaRoot.getVector(0), i, resolver, getValue(vector, i, resolver)
-                    );
-                }
-                else {
-                    BlockUtils.setValue(outputSchemaRoot.getVector(0), i, getValue(vector, i, resolver));
-                }
-            }
 
-            outputSchemaRoot.getVector(0).setValueCount(valueCount);
-            if (inputSchemaRoot.equals(outputSchemaRoot)) {
-                success = true;
+        for (int i = 0; i < valueCount; i++) {
+            if (field.getType().isComplex()) {
+                BlockUtils.setComplexValue(
+                    outputSchemaRoot.getVector(0), i, resolver, getValue(vector, i, resolver)
+                );
+            }
+            else {
+                BlockUtils.setValue(outputSchemaRoot.getVector(0), i, getValue(vector, i, resolver));
             }
         }
-        catch (Exception ex) {
-            ex.printStackTrace(System.out);
-        }
 
-        if (success) {
+        outputSchemaRoot.getVector(0).setValueCount(valueCount);
+
+        if (inputSchemaRoot.equals(outputSchemaRoot)) {
             logger.debug(
                 "Matched for Schema:\n\t"
                 + inputSchemaRoot.getSchema().toString() + "\n"

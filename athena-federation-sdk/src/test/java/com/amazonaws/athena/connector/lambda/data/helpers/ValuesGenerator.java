@@ -33,7 +33,10 @@ import org.apache.arrow.vector.holders.NullableFloat8Holder;
 import org.apache.arrow.vector.holders.NullableIntHolder;
 import org.apache.arrow.vector.holders.NullableSmallIntHolder;
 import org.apache.arrow.vector.holders.NullableTinyIntHolder;
+import org.apache.arrow.vector.holders.NullableTimeStampMicroTZHolder;
 import org.apache.arrow.vector.holders.NullableTimeStampMilliTZHolder;
+import org.apache.arrow.vector.holders.NullableTimeStampNanoTZHolder;
+import org.apache.arrow.vector.holders.NullableTimeStampSecTZHolder;
 import org.apache.arrow.vector.holders.NullableUInt1Holder;
 import org.apache.arrow.vector.holders.NullableUInt2Holder;
 import org.apache.arrow.vector.holders.NullableUInt4Holder;
@@ -53,7 +56,10 @@ import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.SmallIntVector;
 import org.apache.arrow.vector.TinyIntVector;
+import org.apache.arrow.vector.TimeStampMicroTZVector;
 import org.apache.arrow.vector.TimeStampMilliTZVector;
+import org.apache.arrow.vector.TimeStampNanoTZVector;
+import org.apache.arrow.vector.TimeStampSecTZVector;
 import org.apache.arrow.vector.UInt1Vector;
 import org.apache.arrow.vector.UInt2Vector;
 import org.apache.arrow.vector.UInt4Vector;
@@ -108,8 +114,14 @@ public class ValuesGenerator {
                 return setSmallInt(field, vector, length, unique);
             case STRUCT:
                 return setStruct(field, vector, length, unique);
+            case TIMESTAMPMICROTZ:
+                return setTimestampMicroTz(field, vector, length, unique);
             case TIMESTAMPMILLITZ:
                 return setTimestampMilliTz(field, vector, length, unique);
+            case TIMESTAMPNANOTZ:
+                return setTimestampNanoTz(field, vector, length, unique);
+            case TIMESTAMPSECTZ:
+                return setTimestampSecTz(field, vector, length, unique);
             case TINYINT:
                 return setTinyInt(field, vector, length, unique);
             case UINT1:
@@ -421,6 +433,26 @@ public class ValuesGenerator {
         return vector.getValueCount();
     }
 
+    private int setTimestampMicroTz(Field field, FieldVector vector, int length, boolean unique) {
+        int position = vector.getValueCount();
+
+        length = getLength(length);
+        List<Long> items = unique ?
+            Arbitraries.longs().greaterOrEqual(MIN_TIME).lessOrEqual(MAX_TIME).list().ofSize(length).uniqueElements().sample() :
+            Arbitraries.longs().greaterOrEqual(MIN_TIME).lessOrEqual(MAX_TIME).list().ofSize(length).sample();
+
+        for (int i = 0; i < length; i++) {
+            if (isNull(field)) {
+                ((TimeStampMicroTZVector) vector).setSafe(i+position, new NullableTimeStampMicroTZHolder());
+            } else {
+                ((TimeStampMicroTZVector) vector).setSafe(i+position, items.get(i));
+            }
+        }
+
+        vector.setValueCount(position + length);
+        return vector.getValueCount();
+    }
+
     private int setTimestampMilliTz(Field field, FieldVector vector, int length, boolean unique) {
         int position = vector.getValueCount();
 
@@ -434,6 +466,46 @@ public class ValuesGenerator {
                 ((TimeStampMilliTZVector) vector).setSafe(i+position, new NullableTimeStampMilliTZHolder());
             } else {
                 ((TimeStampMilliTZVector) vector).setSafe(i+position, items.get(i));
+            }
+        }
+
+        vector.setValueCount(position + length);
+        return vector.getValueCount();
+    }
+
+    private int setTimestampNanoTz(Field field, FieldVector vector, int length, boolean unique) {
+        int position = vector.getValueCount();
+
+        length = getLength(length);
+        List<Long> items = unique ?
+            Arbitraries.longs().greaterOrEqual(MIN_TIME).lessOrEqual(MAX_TIME).list().ofSize(length).uniqueElements().sample() :
+            Arbitraries.longs().greaterOrEqual(MIN_TIME).lessOrEqual(MAX_TIME).list().ofSize(length).sample();
+
+        for (int i = 0; i < length; i++) {
+            if (isNull(field)) {
+                ((TimeStampNanoTZVector) vector).setSafe(i+position, new NullableTimeStampNanoTZHolder());
+            } else {
+                ((TimeStampNanoTZVector) vector).setSafe(i+position, items.get(i));
+            }
+        }
+
+        vector.setValueCount(position + length);
+        return vector.getValueCount();
+    }
+
+    private int setTimestampSecTz(Field field, FieldVector vector, int length, boolean unique) {
+        int position = vector.getValueCount();
+
+        length = getLength(length);
+        List<Long> items = unique ?
+            Arbitraries.longs().greaterOrEqual(MIN_TIME).lessOrEqual(MAX_TIME).list().ofSize(length).uniqueElements().sample() :
+            Arbitraries.longs().greaterOrEqual(MIN_TIME).lessOrEqual(MAX_TIME).list().ofSize(length).sample();
+
+        for (int i = 0; i < length; i++) {
+            if (isNull(field)) {
+                ((TimeStampSecTZVector) vector).setSafe(i+position, new NullableTimeStampSecTZHolder());
+            } else {
+                ((TimeStampSecTZVector) vector).setSafe(i+position, items.get(i));
             }
         }
 

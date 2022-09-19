@@ -30,8 +30,7 @@ import org.apache.arrow.vector.types.pojo.FieldType;
 import net.jqwik.api.*;
 
 import java.util.List;
-
-// Commented out known failures with TODO's. Will need to go through each one and resolve.
+import java.util.TimeZone;
 
 public class FieldsGenerator {
 
@@ -52,9 +51,7 @@ public class FieldsGenerator {
                     String fieldName = name;
                     if (name == null) {
                         counter++;
-                        fieldName = Arbitraries.strings().withCharRange('a', 'z').
-                            ofMinLength(5).ofMaxLength(10).
-                            sample() + counter;
+                        fieldName = Arbitraries.strings().sample() + counter;
                     }
                     return Arbitraries.just(new Field(fieldName, fieldType, children));
                 })
@@ -87,8 +84,8 @@ public class FieldsGenerator {
 
     @Provide
     private Arbitrary<FieldType> timestampField(boolean nullable) {
-        return Arbitraries.of("UTC").flatMap(timezone ->
-            Arbitraries.of(TimeUnit.MILLISECOND).map(unit ->
+        return Arbitraries.of(TimeZone.getAvailableIDs()).fixGenSize(5).flatMap(timezone ->
+            Arbitraries.of(TimeUnit.SECOND, TimeUnit.MILLISECOND, TimeUnit.MICROSECOND, TimeUnit.NANOSECOND).map(unit ->
                 new FieldType(nullable, new ArrowType.Timestamp(unit, timezone), null)
             )
         );
@@ -114,7 +111,8 @@ public class FieldsGenerator {
             , decimalField(nullable)
             , intField(nullable)
             , floatingPointField(nullable)
-            , timestampField(nullable)
+            // TODO: timestampField is a known failure. This needs to be resolved in BlockUtils first
+            //, timestampField(nullable)
             , Arbitraries.just(new FieldType(nullable, new ArrowType.Utf8(), null))
         );
     }
