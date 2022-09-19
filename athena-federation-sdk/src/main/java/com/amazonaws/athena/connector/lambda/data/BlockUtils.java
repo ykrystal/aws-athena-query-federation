@@ -352,7 +352,12 @@ public class BlockUtils
                     ((UInt4Vector) vector).setSafe(pos, (int) value);
                     break;
                 case UINT8:
-                    ((UInt8Vector) vector).setSafe(pos, (long) value);
+                    if (value instanceof Long) {
+                        ((UInt8Vector) vector).setSafe(pos, (long) value);
+                    }
+                    else {
+                        ((UInt8Vector) vector).setSafe(pos, (int) value);
+                    }
                     break;
                 case BIGINT:
                     ((BigIntVector) vector).setSafe(pos, (long) value);
